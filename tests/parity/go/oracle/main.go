@@ -1,4 +1,4 @@
-// Command oracle is the Go side of the parity check (see ../../README.md).
+// Command oracle is the Go side of the parity check (see docs/parity.md).
 //
 //	oracle -gen <inputs>              write the test inputs
 //	oracle <inputs> <outputs>         run every input

@@ -1,4 +1,4 @@
-//! Ports of raster-go's raster_test.go (the fuzz targets belong to a later stage).
+//! Ports of raster-go's raster_test.go (the fuzz targets are in `tests/fuzz`).
 mod common;
 use common::*;
 use raster::{Error, Limits, Plane, PlaneMut, luma, resample, rotate90, scale2to1};

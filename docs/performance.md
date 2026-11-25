@@ -5,7 +5,7 @@ How to build and call this crate for speed. The measured numbers are in [benchma
 ## Build profile
 
 A dependent crate's own release profile applies to this code, so the profile that counts is the
-consumer's. For a worker that scales tiles:
+consumer's. For a program that scales tiles:
 
 ```toml
 [profile.release]
@@ -35,11 +35,11 @@ RUSTFLAGS="-C target-cpu=x86-64-v4 -C target-feature=+false-deps-tzcnt,+false-de
   wait only under `target-cpu=znver4`/`znver5` tuning, not under `x86-64-v4`. The jpeg-rs encoder
   ran 30 to 60% slower without the two features. This crate has no `tzcnt` loop that we know of, so
   the flags are most likely a no-op here; they are in the recommendation so every crate of a
-  worker is built the same way, and `bench.yml`'s v4 column uses them. rustc warns that it does not
+  program is built the same way, and `bench.yml`'s v4 column uses them. rustc warns that it does not
   know the two features and passes them to LLVM, which does.
 - aarch64: do not set any of these flags (they are x86 only). NEON is part of the aarch64 baseline,
-  so the default target already uses it; `lto`, `codegen-units` and `panic` apply as above. When
-  arm64 nodes join, build a separate image for them and pick its `target-cpu` for those nodes.
+  so the default target already uses it; `lto`, `codegen-units` and `panic` apply as above. Build
+  aarch64 binaries separately and pick their `target-cpu` for the aarch64 machines.
 
 ## SIMD dispatch at run time
 
@@ -105,7 +105,7 @@ let mut rs = Resampler::default();
 ## PGO and BOLT
 
 Profile-guided optimisation and BOLT apply to the final binary, so the consumer does them (the
-worker that links this crate); the library does not change. `pgo.yml` (dispatch only, no secrets)
+program that links this crate); the library does not change. `pgo.yml` (dispatch only, no secrets)
 measures how much they gain on the bench example: it builds the example with `cargo-pgo`, trains it
 on its own 2550x3300 page (`bench 40 1` and `bench 40 0`, so the single-threaded and the threaded
 paths are in the PGO profile; the BOLT profile is trained on `bench 40 1` only, so the "PGO + BOLT"
@@ -127,6 +127,6 @@ Rust ms per call (lower is better), a `pgo.yml` run before the AVX-512 tier, on 
 Result: PGO is not a gain for this crate as a whole. The SIMD kernels (luma, scale-gray) are the same
 within noise. PGO makes resample much slower (the cause is not analysed),
 and BOLT gets back only part of it. Only rotate gains, mostly with threads. Do not
-use a PGO profile trained on this bench for a worker; a worker that wants PGO must train on its own
+use a PGO profile trained on this bench for a program; a program that wants PGO must train on its own
 tile stream and check resample against the default build.
 

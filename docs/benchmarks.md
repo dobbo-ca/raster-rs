@@ -21,7 +21,7 @@ each column keeps its fastest round). The script checks that the v4 and default 
 fixed per kernel, so it does not detect a miscompile); the `ci` stage runs the unit tests and `tests/raster.rs`
 with the v4 flags. Why these flags and when they are safe: [performance.md](performance.md).
 `pgo.yml` (dispatch only) times the default, PGO and PGO plus BOLT builds of the bench example; its
-table is in [performance.md](performance.md). The bench job's timeout is 45 minutes (it was 30):
+table is in [performance.md](performance.md). The bench job's timeout is 90 minutes:
 the image builds Rust and Go twice and the timing loop runs both.
 
 ## Numbers
