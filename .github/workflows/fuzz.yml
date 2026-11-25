@@ -1,0 +1,101 @@
+name: fuzz
+on:
+  schedule: [{ cron: '23 18 * * 3' }]
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: Seconds per target
+        default: '600'
+permissions:
+  contents: read
+# A new run waits for the one before it; it does not cancel it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ops, scale2to1, luma, rotate90, resample]
+        # auto: the best tier the runner has; avx2: RASTER_SIMD=avx2, the AVX2 tier.
+        simd: [auto, avx2]
+        exclude:
+          - { target: ops, simd: avx2 }
+          # The AVX2 tier's grey box is the AVX-512 tier's too and its RGB box is scalar: nothing here
+          # that the auto leg does not fuzz.
+          - { target: scale2to1, simd: avx2 }
+          # AVX2 has no tile or vert kernel: these legs would fuzz only the scalar code.
+          - { target: rotate90, simd: avx2 }
+          - { target: resample, simd: avx2 }
+    timeout-minutes: 60
+    env:
+      MAX_TOTAL_TIME: ${{ inputs.max_total_time || '600' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { lfs: false }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: .github/ci/Dockerfile
+          target: fuzz
+          load: true
+          push: false
+          tags: raster-fuzz:local
+          cache-from: type=gha,scope=raster-rs-fuzz
+          cache-to: type=gha,mode=max,scope=raster-rs-fuzz
+      # docker run, not a RUN layer: a BuildKit cache hit would skip the fuzzing. Seeds: the
+      # raster-go testdata/fuzz entries and ops cases (tests/fuzz/seeds/<target>); new inputs go to the
+      # first corpus dir. An allocation past the limits is a crash.
+      - run: >
+          docker run --name fuzz -e MAX_TOTAL_TIME -e TARGET=${{ matrix.target }} -e RASTER_SIMD=${{ matrix.simd }} raster-fuzz:local
+          sh -c 'mkdir -p tests/fuzz/corpus/$TARGET && cargo +nightly fuzz run --fuzz-dir tests/fuzz $TARGET
+          tests/fuzz/corpus/$TARGET tests/fuzz/seeds/$TARGET --
+          -max_total_time=$MAX_TOTAL_TIME -timeout=10 -rss_limit_mb=2048 -malloc_limit_mb=512'
+      - if: failure()
+        run: docker cp fuzz:/src/tests/fuzz/artifacts/${{ matrix.target }} ./crashers
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crashers-${{ matrix.target }}-${{ matrix.simd }}
+          path: crashers
+
+  # The NEON kernels: the scale2to1 and luma targets, run natively on an arm64 runner with the same
+  # `fuzz` stage and the same `cargo +nightly fuzz run` command as the x86_64 job (sanitizer on).
+  fuzz-arm64:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [scale2to1, luma]
+    timeout-minutes: 60
+    env:
+      MAX_TOTAL_TIME: ${{ inputs.max_total_time || '600' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { lfs: false }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: .github/ci/Dockerfile
+          target: fuzz
+          load: true
+          push: false
+          tags: raster-fuzz-arm64:local
+          cache-from: type=gha,scope=raster-rs-fuzz-arm64
+          cache-to: type=gha,mode=max,scope=raster-rs-fuzz-arm64
+      - run: >
+          docker run --name fuzz -e MAX_TOTAL_TIME -e TARGET=${{ matrix.target }} raster-fuzz-arm64:local
+          sh -c 'mkdir -p tests/fuzz/corpus/$TARGET && cargo +nightly fuzz run --fuzz-dir tests/fuzz $TARGET
+          tests/fuzz/corpus/$TARGET tests/fuzz/seeds/$TARGET --
+          -max_total_time=$MAX_TOTAL_TIME -timeout=10 -rss_limit_mb=2048 -malloc_limit_mb=512'
+      - if: failure()
+        run: docker cp fuzz:/src/tests/fuzz/artifacts/${{ matrix.target }} ./crashers
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crashers-${{ matrix.target }}-arm64
+          path: crashers

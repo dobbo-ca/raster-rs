@@ -1,0 +1,36 @@
+name: bench
+on: { workflow_dispatch: {}, push: { branches: [main] } }
+permissions:
+  contents: read
+# A new run waits for the one before it; it does not cancel it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  # Not a required check. The Go and Rust kernels run in one container, so the
+  # ratio compares the same machine. The summary has two tables: the default builds and the
+  # x86-64-v4 builds (Go GOAMD64=v4, Rust with the flags of docs/performance.md).
+  bench:
+    runs-on: ubuntu-24.04
+    # The image builds Rust and Go twice (default and x86-64-v4) and the timing loop runs both, so
+    # a cold cache on a hosted runner takes a while; a warm run is a few minutes. A runner without
+    # AVX-512 times the default build in the v4 columns (tests/parity/bench.sh says so on stderr).
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { lfs: false }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: .github/ci/Dockerfile
+          target: bench
+          load: true
+          push: false
+          tags: raster-bench:local
+          cache-from: type=gha,scope=raster-rs-bench
+          cache-to: type=gha,mode=max,scope=raster-rs-bench
+      # docker run, not a RUN layer: a BuildKit cache hit would skip the timing.
+      - run: |
+          { echo '### Kernel time on a 2550x3300 page, ms per call (lower is better); default build and x86-64-v4 build'; echo
+            docker run --rm raster-bench:local sh tests/parity/bench.sh 50; } | tee -a "$GITHUB_STEP_SUMMARY"

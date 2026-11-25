@@ -1,0 +1,50 @@
+[package]
+name = "raster-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+raster = { path = "../..", features = ["cancel-hook"] }
+
+# Not part of the root package: only this crate may depend on libfuzzer-sys.
+[workspace]
+
+[[bin]]
+name = "ops"
+path = "fuzz_targets/ops.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scale2to1"
+path = "fuzz_targets/scale2to1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "luma"
+path = "fuzz_targets/luma.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rotate90"
+path = "fuzz_targets/rotate90.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "resample"
+path = "fuzz_targets/resample.rs"
+test = false
+doc = false
+bench = false
