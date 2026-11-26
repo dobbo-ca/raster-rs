@@ -29,8 +29,10 @@ RUN --mount=type=cache,id=raster-target,sharing=locked,target=/src/target \
     find src examples tests -type f -exec touch {} + && cargo clippy --locked --all-targets -- -D warnings
 RUN --mount=type=cache,id=raster-target,sharing=locked,target=/src/target \
     find src examples tests -type f -exec touch {} + && cargo clippy --locked --all-targets --target aarch64-unknown-linux-gnu -- -D warnings
+# The second run prints the tier the tests used ("SIMD tier: ..."), so the log shows what was tested.
 RUN --mount=type=cache,id=raster-target,sharing=locked,target=/src/target \
-    find src examples tests -type f -exec touch {} + && cargo test --locked
+    find src examples tests -type f -exec touch {} + && cargo test --locked \
+    && cargo test --locked --lib -- --nocapture simd_tier_in_use
 RUN --mount=type=cache,id=raster-target,sharing=locked,target=/src/target \
     find src examples tests -type f -exec touch {} + && RASTER_SIMD=avx2 cargo test --locked
 RUN --mount=type=cache,id=raster-target,sharing=locked,target=/src/target \
@@ -59,7 +61,8 @@ FROM src AS arm64
 # The `simd::` filter picks the NEON-vs-scalar unit tests; filters apply to every test binary.
 RUN --mount=type=cache,id=raster-target-arm64,sharing=locked,target=/src/target \
     find src examples tests -type f -exec touch {} + && cargo test --locked --lib --test raster -- \
-    simd:: tier_is_detected scale2to1_exact luma_exact luma_extremes
+    simd:: tier_is_detected scale2to1_exact luma_exact luma_extremes \
+    && cargo test --locked --lib -- --nocapture simd_tier_in_use
 RUN --mount=type=cache,id=raster-target-arm64,sharing=locked,target=/src/target \
     find src examples tests -type f -exec touch {} + && RASTER_SIMD=scalar cargo test --locked --lib --test raster -- \
     simd:: tier_is_detected scale2to1_exact luma_exact luma_extremes

@@ -512,11 +512,12 @@ fn golden() {
 /// Port of `TestImpl`: the SIMD tier the kernels dispatch to. The CI hosts have AVX2 (x86_64) and
 /// NEON (aarch64), so a detector that always says no fails here. On x86_64 the best tier is
 /// AVX-512 where the host has it: `RASTER_EXPECT_AVX512=1` (set on an AVX-512 host) requires
-/// it, and `RASTER_SIMD=avx2` caps it.
+/// it (so does `RASTER_SIMD=avx512`), and `RASTER_SIMD=avx2` caps it.
 #[test]
 fn tier_is_detected() {
     let simd = std::env::var("RASTER_SIMD").ok();
-    let expect512 = std::env::var("RASTER_EXPECT_AVX512").is_ok_and(|v| v == "1");
+    let expect512 = std::env::var("RASTER_EXPECT_AVX512").is_ok_and(|v| v == "1")
+        || simd.as_deref() == Some("avx512");
     let got = raster::tier();
     if simd.as_deref() == Some("scalar") {
         assert_eq!(got, "generic");

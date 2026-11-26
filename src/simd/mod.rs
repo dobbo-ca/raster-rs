@@ -2,7 +2,9 @@
 //! `scale`, `luma`, `rotate` and `resample`. AVX2 and NEON have the grey 2:1 box and RGB to luma
 //! (the two kernels Go has assembly for); AVX-512 adds the RGB 2:1 box, the 16x16 rotate tile
 //! (grey) and the vertical resample pass. The tier is detected once, best first; `RASTER_SIMD=scalar`
-//! forces scalar and `RASTER_SIMD=avx2` caps x86_64 at AVX2 (any other value detects normally).
+//! forces scalar and `RASTER_SIMD=avx2` caps x86_64 at AVX2; `RASTER_SIMD=avx512` requires the
+//! AVX-512 tier and panics on a CPU without it (for CI under an emulator). Any other value
+//! detects normally.
 //! A kernel a tier lacks is `None` and the scalar code runs it. Scalar is the oracle: every tier
 //! is bit-exact with it.
 
@@ -87,13 +89,34 @@ pub(crate) fn kernels() -> Option<&'static Kernels> {
     K.get_or_init(|| match std::env::var_os("RASTER_SIMD") {
         Some(v) if v == "scalar" => None,
         Some(v) if v == "avx2" => detect(true),
+        Some(v) if v == "avx512" => {
+            let k = avx512_kernels();
+            assert!(
+                k.is_some(),
+                "RASTER_SIMD=avx512, but this CPU lacks AVX-512 F, BW and VBMI"
+            );
+            k
+        }
         _ => detect(false),
     })
     .as_ref()
 }
 
+/// The AVX-512 kernels, or `None` on a target or CPU without them.
+fn avx512_kernels() -> Option<Kernels> {
+    #[cfg(target_arch = "x86_64")]
+    {
+        avx512::detect()
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        None
+    }
+}
+
 /// The tier the kernels dispatch to on this host: "avx512", "avx2", "neon" or "generic"
-/// (scalar). `RASTER_SIMD=scalar` or `avx2` lowers it. A tier may lack a kernel (AVX2 and NEON
+/// (scalar). `RASTER_SIMD=scalar` or `avx2` lowers it; `RASTER_SIMD=avx512` panics unless the
+/// host has AVX-512. A tier may lack a kernel (AVX2 and NEON
 /// have only the grey `scale2to1` and `luma`); that kernel then runs the scalar code.
 ///
 /// It takes no `Limits`: it allocates nothing and spawns no thread.
@@ -142,10 +165,11 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         {
             assert!(is_x86_feature_detected!("avx2"), "AVX2 expected on x86_64");
-            let want512 = std::env::var_os("RASTER_EXPECT_AVX512").is_some_and(|v| v == "1");
+            let want512 = std::env::var_os("RASTER_EXPECT_AVX512").is_some_and(|v| v == "1")
+                || std::env::var_os("RASTER_SIMD").is_some_and(|v| v == "avx512");
             assert!(
                 !want512 || avx512::detect().is_some(),
-                "AVX-512 (F, BW, VBMI) expected: RASTER_EXPECT_AVX512=1"
+                "AVX-512 (F, BW, VBMI) expected: RASTER_EXPECT_AVX512=1 or RASTER_SIMD=avx512"
             );
             v.extend(avx512::detect());
             v.extend(avx2::detect());
@@ -161,6 +185,20 @@ mod tests {
         #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
         assert!(!v.is_empty());
         v
+    }
+
+    /// Logs the tier in use (`--nocapture`), so a CI log shows what the run tested; under
+    /// `RASTER_SIMD=avx512` the AVX-512 tier must be the one in use.
+    #[test]
+    fn simd_tier_in_use() {
+        eprintln!(
+            "SIMD tier: {}, AVX-512 kernels: {}",
+            tier(),
+            avx512_kernels().is_some()
+        );
+        if std::env::var_os("RASTER_SIMD").is_some_and(|v| v == "avx512") {
+            assert_eq!(tier(), "avx512");
+        }
     }
 
     #[derive(Clone, Copy)]

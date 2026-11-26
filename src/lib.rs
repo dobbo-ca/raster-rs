@@ -8,7 +8,8 @@
 //!
 //! The kernels have SIMD tiers chosen at run time (AVX-512, AVX2, NEON; see [`tier`]), each
 //! bit-exact with the scalar code. `RASTER_SIMD=scalar` forces scalar, `RASTER_SIMD=avx2` caps
-//! x86_64 at AVX2.
+//! x86_64 at AVX2, `RASTER_SIMD=avx512` panics on a CPU without AVX-512 (for CI under an
+//! emulator).
 //!
 //! # Resource limits
 //!
