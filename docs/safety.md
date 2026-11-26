@@ -7,15 +7,17 @@ tails of every row) is scalar. The scalar reference is always compiled and is th
 is bit-exact with it for every input. The tier is detected once (`is_x86_feature_detected!`,
 `is_aarch64_feature_detected!`), best first: AVX-512, then AVX2, on x86_64. `RASTER_SIMD=scalar` forces
 scalar (Go's `RASTERGO_CPU=generic`); `RASTER_SIMD=avx2` caps x86_64 at AVX2 (for the bench's AVX2
-column and for tests; on other targets it is ignored). `raster::tier()` (a query, so it takes no
+column and for tests; on other targets it is ignored); `RASTER_SIMD=avx512` panics on a CPU without
+AVX-512 F, BW and VBMI (for CI under an emulator). `raster::tier()` (a query, so it takes no
 `Limits`) reports `"avx512"`, `"avx2"`, `"neon"` or `"generic"` (Go's `Impl`). A tier lacking a kernel
 has `None` for it in `Kernels` and the scalar code runs it. The kernels are safe `#[target_feature]`
 fns; `unsafe` is only in the per-tier dispatch (calling a kernel after detection) and the array-ref
 load/store helpers. The kernels do whole lanes and the scalar row finishes the tail. Unit tests
 compare every kernel of every tier the host has with the scalar code, bit for bit, on random and
 all-0xff/0 data, edge widths and unaligned starts. They assert AVX2 (x86_64) or NEON (aarch64) was
-detected, and AVX-512 when `RASTER_EXPECT_AVX512=1` (set it only on a host with AVX-512; CI sets it
-only for the x86-64-v4 tests, which run only on such a host).
+detected, and AVX-512 when `RASTER_EXPECT_AVX512=1` or `RASTER_SIMD=avx512` (set either only on a
+host with AVX-512; CI sets the first for the x86-64-v4 tests, which run only on such a host, and the
+second in `avx512-sde`, under Intel SDE).
 
 ## AVX-512 tier (`src/simd/avx512.rs`)
 

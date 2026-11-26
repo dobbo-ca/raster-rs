@@ -8,6 +8,9 @@ tests on a native arm64 runner (`arm64` job: NEON, then scalar), and the Go orac
 tier (`parity` job; see `docs/parity.md`). The real-file quality check (`docs/quality.md`, run by
 hand) compares seven outputs per tile with Go. `fuzz.yml` runs the fuzz targets weekly, and `bench.yml` the Go and Rust
 benchmark side by side.
+SIMD tiers in CI: scalar, AVX2 (x86_64) and NEON (aarch64) natively; the AVX-512 kernels under Intel
+SDE (`avx512-sde`: the unit tests and the kernel tests of `tests/raster.rs` on `-spr` with
+`RASTER_SIMD=avx512`, which fails on a CPU without AVX-512), and natively when the hosted runner has it.
 
 | Function | What |
 |---|---|
