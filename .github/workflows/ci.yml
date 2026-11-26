@@ -9,7 +9,7 @@ jobs:
   # The checks run inside .github/ci/Dockerfile with BuildKit on the runner. The layers are saved to
   # the Actions cache (one scope per job).
   # A PR needs only `test`; arm64 and parity run on main and on workflow_dispatch.
-  # A crate is done only when they are green on main. arm64 runs natively on an arm64 runner.
+  # arm64 runs natively on an arm64 runner.
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

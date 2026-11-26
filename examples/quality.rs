@@ -201,8 +201,8 @@ fn main() -> Res<()> {
     let [_, input, output] = args.as_slice() else {
         usage()
     };
-    // First stdout line: the tier that produced the outputs being compared (the CI report keeps it).
-    // RASTER_EXPECT_AVX512=1 without RASTER_SIMD must run on AVX-512, so a node without it fails.
+    // First stdout line: the tier that produced the outputs being compared.
+    // RASTER_EXPECT_AVX512=1 without RASTER_SIMD must run on AVX-512, so a host without it fails.
     let tier = raster::tier();
     println!("tier: {tier}");
     if env::var_os("RASTER_EXPECT_AVX512").is_some_and(|v| v == "1")
